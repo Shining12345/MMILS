@@ -1,0 +1,711 @@
+#define _CRT_SECURE_NO_WARNINGS // Avoid time errors
+#include <string>
+#include <fstream>
+#include <vector>
+#include <sstream>
+#include <iostream>
+#include <stdlib.h>
+#include <algorithm>
+#include <math.h>
+#include<ctime>
+#include <windows.h>
+#include "json.hpp"
+#include <iomanip>  
+using namespace std; // References to this namespace, without references will have to use the class as std::fstring
+
+string getCurrentDateTimeForFilename();
+long double findNthSmall(vector<long double> container, int n);
+int get_index(vector<int>result2, int index2);
+void print_vector_int2(vector<int>lis);
+string readFileIntoString(char* filename);
+
+void print_vector_double(vector<long double>lis);
+vector<long double> sortVector(vector<long double> res);
+// Global variable
+string filenamePart = getCurrentDateTimeForFilename();
+char* fn = (char*)"NewData500N.json";// Change to your data set path
+string json_name = "D:/ Run result /MMILS100/" + filenamePart + fn;// Change your save results path
+using json = nlohmann::json;
+double start_len_weight = 0.1;
+int l_count = 100;
+int iters = 30;
+const int count_m = 9999;
+
+string str = readFileIntoString(fn);
+json j2 = str;
+//cout << str;
+//cout << j2 << endl;
+string recvBuf = str;
+// Deserialization of data
+json jsbuf = json::parse(recvBuf);
+vector<vector<long double>> w = jsbuf["w"];
+vector<vector<long double>> M = jsbuf["M"];
+vector<vector<long double>> N = jsbuf["N"];
+vector<vector<long double>> K = jsbuf["K"];
+vector<vector<long double>> k = jsbuf["k"];
+vector<vector<long double>> A = jsbuf["A"];
+vector<vector<long double>> LC = jsbuf["LC"];
+vector<vector<long double>> LS = jsbuf["LS"];
+vector<vector<long double>> LT = jsbuf["LT"];
+vector<vector<long double>> D = jsbuf["D"];
+vector<vector<long double>> MC = jsbuf["MC"];
+vector<vector<long double>> MS = jsbuf["MS"];
+vector<vector<long double>> MT = jsbuf["MT"];
+vector<vector<long double>> MP = jsbuf["MP"];
+// Read from file into string
+string readFileIntoString(char* filename)
+{
+	ifstream ifile(filename);
+	// Reads the file into the ostringstream object buf
+	ostringstream buf;
+	char ch;
+	while (buf && ifile.get(ch))
+		buf.put(ch);
+	// Returns the string associated with the stream object buf
+	return buf.str();
+}
+string getCurrentDateTimeForFilename() {
+	// Get the time (seconds) since the Epoch 
+	auto now = time(nullptr);
+  
+	tm* ltm = localtime(&now);
+  
+	ostringstream oss;
+	oss << put_time(ltm, "%Y%m%d_%H%M%S"); // Format time, for example, "20240718_123456"
+
+	// Returns a time string  
+	return oss.str();
+}
+long double f1(vector<int> result)
+{
+	//print_vector_int2(result);
+	int lens = result[result.size() - 1];
+	long double temp = 0;
+	for (int i = 0; i < (lens); i++)
+	{
+		temp = temp + abs(D[0][result[i]] - A[0][k[0][0]]);
+	}
+	return temp / result[result.size() - 1];
+}
+
+long double f2(vector<int>result) {
+	int lens = result[result.size() - 1];
+	long double NC = 0, temp = 0, temp1 = 0, temp2 = 0, temp3 = 0, mc_sum = 0;
+	for (int m = 1; m < (M[0][0] + 1); m++)
+	{
+		for (int i = 0; i < lens; i++) {
+			mc_sum = mc_sum + MC[m - 1][result[i]];
+		}
+		if (mc_sum > 0) {
+			NC = NC + 1;
+		}
+		mc_sum = 0;
+	}
+	for (int m = 1; m < (M[0][0] + 1); m++) {
+		for (int i = 0; i < lens; i++) {
+			temp = temp + MC[m - 1][result[i]];
+		}
+	}
+	long double NM = temp / NC;
+	for (int m = 1; m < (M[0][0] + 1); m++) {
+		for (int i = 0; i < lens; i++) {
+			temp1 = temp1 + MC[m - 1][result[i]];
+		}
+		temp2 = temp2 + abs(temp1 - (LC[m - 1][k[0][0]] * NM));
+		temp1 = 0;
+	}
+	for (int m = 1; m < M[0][0] + 1; m++) {
+		temp3 = temp3 + LC[m - 1][k[0][0]];
+	}
+	return temp2 / temp3;
+
+}
+
+long double f3(vector<int>result) {
+	int lens = result[result.size() - 1];
+	long double temp = 0;
+	for (int j = 1; j < 5; j++) {
+		for (int i = 0; i < lens; i++) {
+			temp = temp + abs(MS[j - 1][result[i]] - LS[j - 1][k[0][0]]);
+		}
+	}
+	return temp / (lens * 4);
+}
+
+long double f4(vector<int>result) {
+	int lens = result[result.size() - 1];
+	long double temp = 0, temp1 = 0, MCsum = 0, temp2 = 0;
+	for (int m = 1; m < (M[0][0] + 1); m++) {
+		for (int i = 1; i < lens; i++) {
+			for (int j = 0; j < i; j++) {
+				temp = temp + MC[m - 1][result[j]];
+			}
+			if (temp > 0) {
+				MCsum = 1;
+				temp = 0;
+			}
+			if (MP[m - 1][result[i]] > MCsum) {
+				temp1 = temp1 + 1;
+			}
+			MCsum = 0;
+		}
+	}
+	for (int m = 1; m < (M[0][0] + 1); m++) {
+		if (MP[m - 1][result[0]] > 0) {
+			temp2 = temp2 + 1;
+		}
+	}
+	return (temp1 + temp2) / lens;
+}
+
+long double f5(vector<int>result) {
+	int lens = result[result.size() - 1];
+	long double temp = 0;
+	for (int i = 0; i < lens; i++) {
+		temp = temp + MT[0][result[i]];
+	}
+	if (LT[0][k[0][0]] <= temp and temp <= LT[1][k[0][0]]) {
+		return 0;
+	}
+	long double temp2 = 0;// Defined in order to find the maximum value by passing two double arguments
+	return max(LT[0][k[0][0]] - temp, temp2) + max(temp - LT[1][k[0][0]], temp2);
+}
+int m = 0;// Record the execution times
+long double func(vector<int> result) {
+	m = m + 1;
+	long double result2 = 0;
+	result2 = w[0][0] * f1(result) + w[1][0] * f2(result) + w[2][0] * f3(result) + w[3][0] * f4(result) + w[4][0] * f5(result);
+	return result2;
+}
+
+// Generate random numbers
+vector<int> CreateRandomNums(int min, int max, int num)
+{
+	vector<int> res;
+	res.clear();
+	if (max - min + 1 < num)
+	{
+		return res;
+	}
+	LARGE_INTEGER seed;
+	QueryPerformanceFrequency(&seed);
+	QueryPerformanceCounter(&seed);
+	srand(seed.QuadPart);
+	for (auto i{ 0 }; i < num; i++)
+	{
+		while (true)
+		{
+			auto temp{ rand() % (max + 1 - min) + min };
+			auto iter{ find(res.begin(),res.end(),temp) };
+			if (res.end() == iter)
+			{
+				res.push_back(temp);
+				break;
+			}
+		}
+	}
+	return res;
+}
+
+vector <int> get_start() {
+	long double max_value = *max_element(MT[0].begin(), MT[0].end());
+	long double min_value = *min_element(MT[0].begin(), MT[0].end());
+	long double NL = LT[0][k[0][0]] / max_value;
+	long double NU = LT[1][k[0][0]] / min_value;
+	int len_start = ceil((NU - NL) * start_len_weight + NL);
+	vector<int>res = CreateRandomNums(0, N[0][0] - 1, len_start);
+	res.push_back(len_start);
+	return res;
+}
+int get_badindex(vector<int>result2) {// Find the study material that has the greatest impact
+	vector<int>res = result2;
+	vector<int>temp2 = result2;
+	vector<long double>save_fitness;
+	long double temp;
+	int index;
+	for (int i = 0; i < res[res.size() - 1]; i++) {
+		if (m > count_m - 1) {
+			return 1;
+		}
+		res[res.size() - 1] = res[res.size() - 1] - 1;
+		index = i; // Subscript to delete
+		// Gets the iterator of the element with the specified subscript
+		auto it = res.begin() + index;
+		// Deletes the element with the specified subscript
+		res.erase(it);
+		temp = func(res);
+		save_fitness.push_back(temp);
+		res = temp2;
+	}
+	int min_value_index = min_element(save_fitness.begin(), save_fitness.end()) - save_fitness.begin();
+	return min_value_index;// Returns the subscript that has the greatest impact on the learning material in the original learning path
+}
+
+// To be able to have multiple return value Settings
+struct MyStruct
+{
+	vector<int>  result2;
+	long double min_value3;
+};
+struct MemoryTable// Memory table
+{
+	vector<int>ban_materials;// Memorize the material in the table
+	vector<long double>ban_func;// Fitness function value
+};
+MemoryTable memorytable2;
+int ban_table_len = 0.8 * N[0][0];// Memory table length
+void update_ban2(vector<int> number, vector<long double> fitness_value) {
+	vector<long double>fitness2 = fitness_value;
+	vector<int> num2 = number;
+	//vector<long double>ban_fun;
+	MemoryTable bantab = memorytable2;
+	for (int i = 0; i < number.size(); i++) {// Merge
+		bantab.ban_materials.push_back(number[i]);
+		bantab.ban_func.push_back(fitness_value[i]);
+	}
+	vector<long double>res = bantab.ban_func;
+	vector<int>material = bantab.ban_materials;
+	bantab.ban_func = sortVector(bantab.ban_func);// From smallest to largest
+	vector<long double>res2;// New memory table value
+	vector<int>material2;// New memory table material
+	for (int i = 0; i < material.size(); i++) {// Select the maximum forbid
+		if (material2.size() <= ban_table_len - 1) {
+			int max_value_index = find(res.begin(), res.end(), bantab.ban_func[bantab.ban_func.size() - i - 1]) - res.begin();// Obtain the maximum objective function values in sequence
+			if (find(material2.begin(), material2.end(), material[max_value_index]) == material2.end()) {// If there is the same objective function value, only one learning material that was put into the memory table earlier is saved
+				//bantable2.ban_func[max_value_index] = fitness_value[i];
+				material2.push_back(material[max_value_index]);
+				res2.push_back(res[max_value_index]);
+			}
+			else {
+				for (int j = 0; j < material.size(); j++) {
+					if (res[j] == bantab.ban_func[bantab.ban_func.size() - i - 1]) {
+						if (find(material2.begin(), material2.end(), material[j]) == material2.end()) {
+							material2.push_back(material[j]);
+							res2.push_back(res[j]);
+							break;
+						}
+					}
+				}
+			}
+		}
+	}
+	memorytable2.ban_materials = material2;
+	memorytable2.ban_func = res2;
+}
+vector<long double> sortVector(vector<long double> res) {
+	sort(res.begin(), res.end());
+	return res;
+}
+
+MyStruct swap_operation(vector<int>lis, long double best) {// Switch operation
+	if (m > count_m) {
+		MyStruct mystruct;
+		mystruct.result2 = lis;
+		mystruct.min_value3 = func(lis);
+		return mystruct;
+	}
+	int min_value_index2 = get_badindex(lis);// Serial number of the learning material to be deleted
+	if (m > count_m) {
+		MyStruct mystruct;
+		mystruct.result2 = lis;
+		mystruct.min_value3 = func(lis);
+		return mystruct;
+	}
+	//	vector<int> ban_path;
+	vector<long double>ban_func;
+	long double temp_func;
+	//cout << min_value_index2 << endl;
+	vector<int>result2 = lis;
+	vector<long double>save_fitness;
+	int value_index;
+	//update_ban_table(min_value_index2);
+	MemoryTable memorytable3 = memorytable2;
+	vector<int>number;
+	vector<long double> fitness;
+	for (int i = 0; i < N[0][0]; i++) {
+		if (find(result2.begin(), result2.end() - 1, i) != result2.end() - 1) {
+			save_fitness.push_back(999);
+			lis = result2;
+		}
+		else if (find(memorytable3.ban_materials.begin(), memorytable3.ban_materials.end(), i) != memorytable3.ban_materials.end())//ban_table是上轮记忆表
+		{
+			save_fitness.push_back(99);
+			lis = result2;
+		}
+		else {
+			if (m > count_m) {
+				save_fitness.push_back(999999);
+				continue;
+			}
+			// Replace the learning materials to be deleted one by one
+			lis[min_value_index2] = i;
+			temp_func = func(lis);
+			save_fitness.push_back(temp_func);
+			lis = result2;// Restore the lis to the starting list
+			number.push_back(i);
+			fitness.push_back(temp_func);
+			//update_ban(i, temp_func);
+		}
+	}
+	update_ban2(number, fitness);
+	long double min_value3 = *min_element(save_fitness.begin(), save_fitness.end());
+	int min_value_index = find(save_fitness.begin(), save_fitness.end(), min_value3) - save_fitness.begin();
+	//print_vector_double(save_fitness);
+	if (best > min_value3) {// If it gets better, go back to the changed one
+		result2[min_value_index2] = min_value_index;
+	}
+	else
+	{
+		result2 = lis;
+	}
+
+	// In order to return multiple value Settings
+	MyStruct  resul;
+	resul.result2 = result2;
+	resul.min_value3 = min_value3;// If the return value is not changed well, then the two do not correspond and the corresponding measures have been modified in the search function
+	return resul;
+}
+
+
+MyStruct search_min(vector<int> lis) {
+	if (m > count_m) {
+		MyStruct mystruct;
+		mystruct.result2 = lis;
+		mystruct.min_value3 = func(lis);
+		return mystruct;
+	}
+	long double gbest = func(lis);
+	vector<int> temp;
+	long double fitness;
+	MyStruct mystruct;
+
+
+	while (true)
+	{
+		temp = lis;
+
+		//ban_table.clear();
+		mystruct = swap_operation(lis, gbest);
+
+		lis = mystruct.result2;
+		fitness = mystruct.min_value3;
+		if (fitness >= gbest) {
+			mystruct.result2 = temp;
+			mystruct.min_value3 = gbest;
+			return mystruct;
+
+		}
+		if (fitness < gbest) {
+			gbest = fitness;
+
+		}
+		if (m > count_m) {
+			return mystruct;
+			break;
+		}
+	}
+}
+
+vector<int> last_control(vector<int>v)// Full permutation operator
+{
+	vector <int>bestpath;
+	vector <int>bestpath2;
+	bestpath = v;
+	long double best_fitness = func(bestpath);
+	bestpath2 = bestpath;
+	sort(bestpath.begin(), bestpath.end() - 1);
+	do {
+		if (func(bestpath) < best_fitness) {
+			bestpath2 = bestpath;
+			best_fitness = func(bestpath2);
+		}
+		if (m > count_m) {
+			return bestpath2;
+		}
+	} while (next_permutation(bestpath.begin(), bestpath.end() - 1));
+	return bestpath2;
+}
+vector <int> get_trans_result(vector<int>list, int index) {// To obtain the result of the disturbance, index indicates the disturbance mode to be used
+	vector<int> result_new = list;
+	int temp;
+	long double max_value = *max_element(MT[0].begin(), MT[0].end());
+	long double min_value = *min_element(MT[0].begin(), MT[0].end());
+	long double NL = LT[0][k[0][0]] / max_value;
+	long double NU = LT[1][k[0][0]] / min_value;
+	//int lens = result_new[result_new.size() - 1];
+	LARGE_INTEGER seed;
+	QueryPerformanceFrequency(&seed);
+	QueryPerformanceCounter(&seed);
+	srand(seed.QuadPart);
+	if (index == 6) {
+		if ((NL <= result_new[result_new.size() - 1] - 1) and (result_new[result_new.size() - 1] - 1 <= NU)) {
+			//temp = get_index(result_new, index);
+			temp = get_badindex(result_new);
+			// Gets the iterator of the element with the specified subscript
+			auto it = result_new.begin() + temp;
+			// Deletes the element with the specified subscript
+			result_new.erase(it);
+			result_new[result_new.size() - 1] = result_new[result_new.size() - 1] - 1;
+		}
+		else {// The deletion fails. The minimum length is not reached after the deletion. The original list is returned
+			return list;
+		}
+	}
+	else if (index == 6) {
+		result_new = last_control(result_new);
+		if (result_new == list) {// If no action is taken, return to the original list
+			return list;
+		}
+	}
+	else if (index == 1) {// Add one randomly
+		if (NL <= result_new[result_new.size() - 1] + 1 and result_new[result_new.size() - 1] + 1 <= NU) {
+			int random_int2 = rand() % int(N[0][0]);// 相当于 random_int2 = random.randint(0, N[0][0] - 1)
+			while (find(result_new.begin(), result_new.end(), random_int2) != result_new.end()) {
+				random_int2 = rand() % int(N[0][0]);
+			}
+			result_new.pop_back();
+			result_new.push_back(random_int2);
+			result_new.push_back(result_new.size());
+		}
+		else {
+			return list;
+		}
+
+	}
+	else if (index == 6) {// Delete one and add two
+		if (NL <= result_new[result_new.size() - 1] + 1 and result_new[result_new.size() - 1] + 1 <= NU) {
+			temp = get_badindex(result_new);
+			// Gets the iterator of the element with the specified subscript
+			auto it = result_new.begin() + temp;
+			// Deletes the element with the specified subscript
+			result_new.erase(it);
+			result_new.pop_back();// shilling-length element out of stack
+			//result_new[result_new.size() - 1] = result_new[result_new.size() - 1] + 1;// The length is out of the stack
+			int random_int2 = rand() % int(N[0][0]);
+			while (find(result_new.begin(), result_new.end(), random_int2) != result_new.end()) {
+				random_int2 = rand() % int(N[0][0]);
+			}
+			result_new.push_back(random_int2);
+			random_int2 = rand() % int(N[0][0]);
+			while (find(result_new.begin(), result_new.end(), random_int2) != result_new.end()) {
+				random_int2 = rand() % int(N[0][0]);
+			}
+			result_new.push_back(random_int2);
+			result_new.push_back(result_new.size());// Puts the length element on the stack
+		}
+		else {
+			return list;
+		}
+	}
+	else if (index == 6) {// Delete two add two
+		if (result_new.size() == 3) {// If there are only two elements, do not delete them and return them directly
+			return list;
+		}
+		temp = get_badindex(result_new);
+		// Gets the iterator of the element with the specified subscript
+		auto it = result_new.begin() + temp;
+		// Deletes the element with the specified subscript
+		result_new.erase(it);
+		result_new[result_new.size() - 1] = result_new[result_new.size() - 1] - 1;
+		temp = get_badindex(result_new);
+		// Gets the iterator of the element with the specified subscript
+		it = result_new.begin() + temp;
+		// Deletes the element with the specified subscript
+		result_new.erase(it);
+		//result_new[result_new.size()-1] = result_new[result_new.size()-1] + 1;
+		result_new.pop_back();
+		int random_int2 = rand() % int(N[0][0]);
+		while (find(result_new.begin(), result_new.end(), random_int2) != result_new.end()) {
+			random_int2 = rand() % int(N[0][0]);
+		}
+		result_new.push_back(random_int2);
+		random_int2 = rand() % int(N[0][0]);
+		while (find(result_new.begin(), result_new.end(), random_int2) != result_new.end()) {
+			random_int2 = rand() % int(N[0][0]);
+		}
+		result_new.push_back(random_int2);
+		result_new.push_back(result_new.size());
+	}
+	return result_new;
+}
+long double main_func() {
+	memorytable2.ban_func.clear();
+	memorytable2.ban_materials.clear();
+	//ban_table.clear();
+	vector<int>start = get_start();
+
+	int count = 0;
+	long double gbest3 = 999;
+	MyStruct mystruct = search_min(start);
+	start = mystruct.result2;
+	long double best = mystruct.min_value3;
+	vector<int>bestpath = start;
+	vector<int>lists = start;
+	MyStruct mystruct5;
+	vector<vector<int>> trans_res;
+	int index = 1;
+	while (true)
+	{
+		if (m > count_m) {
+			break;
+		}
+		for (int i = 1; i <= 1; i++) {
+			if (m > count_m) {
+				trans_res.push_back(lists);
+			}
+			else {
+				trans_res.push_back(get_trans_result(lists, i));
+			}
+
+		}
+		if (trans_res[0] == lists) {
+			break;
+		}
+		for (int i = 0; i < 1; i++) {
+			//if (index == 1 or i==0 or (index > 1 and i > 1)) {// If the second round or more is searched, the first two neighborhoods are not searched
+			/*if (index > 1 and (i == 1 or i == 4)) {
+				continue;
+			}*/
+			if (trans_res[i] != lists) {// If the length does not meet the criteria, the search will not be performed again
+				if (m > count_m) {
+					break;
+				}
+				mystruct5 = search_min(trans_res[i]);
+				if (mystruct5.min_value3 < best)
+				{
+					best = mystruct5.min_value3;
+					bestpath = mystruct5.result2;
+					lists = mystruct5.result2;
+					index = 1;// Whenever lists change, set index to 1
+					break;// If a neighborhood search results better, do not continue to search for the next neighborhood
+				}
+			}
+			/*if (i == 4) {
+				index = index + 1;// If all five perturbations fail, a second round of five perturbations is performed
+			}*/
+		}
+		trans_res.clear();// Clear the disturbance result to 0
+	}
+	//print_vector_int2(ban_table);
+	//cout << "best=" << best << ",";
+	/*print_vector_int2(bantable2.ban_materials);
+	print_vector_int2(bantable2.ban_len);
+	print_vector_double(bantable2.ban_func);*/
+	cout << "The optimal path is:";
+	print_vector_int2(bestpath);
+
+
+	return best;
+}
+vector<long double>total_control() {
+	long double fitness = 0;
+	vector <long double>count_fitness;
+	vector <long double>count_time;
+	vector<vector<long double>> total_fitness;
+	vector<vector<long double>> total_time;
+	vector<long double>result;
+	vector<long double>result2;
+	clock_t start_time;
+	clock_t end_time;
+	for (int i = 0; i < l_count; i++) {
+		k[0][0] = i;
+		for (int j = 0; j < iters; j++) {
+			start_time = clock();
+			m = 0;
+			fitness = main_func();
+			end_time = clock();
+			cout << ",best=" << fitness << ",";
+			cout << "The " << i + 1 << "th learner, the " << j + 1 << "th calculation, number of runs: " << m << endl;
+			count_fitness.push_back(fitness);
+			count_time.push_back((double)(end_time - start_time) / CLOCKS_PER_SEC);
+			fitness = 0;
+		}
+		total_fitness.push_back(count_fitness);
+		total_time.push_back(count_time);
+		count_fitness.clear();
+		count_time.clear();
+	}
+	long double sum2 = 0;
+	for (int i = 0; i < iters; i++) {
+		for (int j = 0; j < l_count; j++) {
+			sum2 = sum2 + total_fitness[j][i];
+		}
+		result2.push_back(sum2 / l_count);
+		sum2 = 0;
+	}
+	json j_a;
+	j_a["total_fitness"] = total_fitness;
+	j_a["total_time"] = total_time;
+	ofstream o(json_name);
+	o << j_a << endl;
+	o.close();
+	return result2;
+}
+void print_vector_double(vector<long double>lis) {
+	int len = lis.size();
+	for (int i = 0; i < len; i++) {
+		cout << "lis[" << i << "]=" << lis[i] << endl;
+	}
+}
+
+void print_vector_int2(vector<int>lis) {
+	int len = lis.size();
+	//ofs << "{";
+	cout << "{";
+	for (int i = 0; i < len; i++) {
+		if (i + 1 == len) {
+			//ofs << lis[i];
+			cout << lis[i];
+		}
+		else {
+			//ofs << lis[i] << ",";
+			cout << lis[i] << ",";
+		}
+	}
+	//ofs << "}" << endl;
+	cout << "}";
+}
+long double avg(vector<long double> list) {
+	int len = list.size();
+	long double sum = 0;
+	for (int i = 0; i < len; i++) {
+		sum = sum + list[i];
+	}
+	return sum / len;
+}
+
+void test() {
+	k[0][0] = 0;
+	/*cout << f1({ 0,35,97,3 }) << endl;
+	cout << f2({ 0,35,97,3 }) << endl;
+	cout << f3({ 0,35,97,3 }) << endl;
+	cout << f4({ 0,35,97,3 }) << endl;
+	cout << f5({ 0,35,97,3 }) << endl;
+	cout << func({ 42,254,332,490,4 }) << endl;*/
+	//print_vector_int2(CreateRandomNums(1, 10000, 10));
+	//		print_vector_int2(get_start());
+	//cout << get_badindex({ 0,35,97,3 }) << endl;
+	//print_vector_double(findNthSmall2({ 1,0,36,97,4 },1));
+	//cout << findNthSmall({ 1,0,36,97,4 }, 5);
+	//print_vector_double(sortVector({ 1,0,36,97,4 }));
+	for (int i = 1; i <= 5; i++) {
+		print_vector_int2(get_trans_result({ 35,0,97,3 }, i));
+	}
+	//print_vector_int2(search_min({ 1,2,97,3 }).result2);
+	//MyStruct my = swap_operation({ 1,35,96,3 }, 1);
+	//print_vector_int2(my.result2);
+	//cout << my.min_value3<< endl;
+	//cout << func({ 0,37,97,3 }) << endl;
+}
+
+int main()
+{
+	vector<long double>resu = total_control();
+	print_vector_double(resu);
+	long double avg2 = avg(resu);
+	cout << "The overall average is" << avg2 << endl;
+
+	//test();
+	return 0;
+	system("pause");
+}
